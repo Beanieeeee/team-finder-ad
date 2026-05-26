@@ -152,3 +152,10 @@ media/
 venv/
 __pycache__/
 *.pyc
+
+.env
+venv/
+media/
+__pycache__/
+*.pyc
+*.sqlite3
