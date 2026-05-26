@@ -1,9 +1,9 @@
-from django.contrib.auth import login, logout
+from django.contrib import messages
+from django.contrib.auth import login, logout, update_session_auth_hash
 from django.shortcuts import redirect, render
 from django.shortcuts import get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.contrib import messages
 from .forms import LoginForm, ProfileEditForm, RegisterForm
 from django.contrib.auth import update_session_auth_hash
 from .models import User
@@ -131,6 +131,11 @@ def change_password(request):
     if form.is_valid():
         user = form.save()
         update_session_auth_hash(request, user)
+        messages.success(request, "Аккаунт успешно создан. Теперь войдите в систему.")
+        messages.success(request, "Аккаунт успешно создан. Теперь войдите в систему.")
+        messages.success(request, "Вы вошли в аккаунт.")
+        messages.success(request, "Вы вышли из аккаунта.")
+        messages.success(request, "Профиль успешно обновлён.")
         messages.success(request, "Пароль успешно изменён.")
         return redirect("users:profile", pk=request.user.pk)
 
