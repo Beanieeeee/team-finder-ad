@@ -34,19 +34,24 @@ def project_detail(request, pk):
         pk=pk,
     )
 
+    project.participants.add(project.owner)
+
+    participants = project.participants.exclude(pk=project.owner.pk)
+
     is_participant = False
     if request.user.is_authenticated:
-        is_participant = project.participants.filter(pk=request.user.pk).exists()
+        is_participant = participants.filter(pk=request.user.pk).exists()
 
     return render(
         request,
         "projects/project-details.html",
         {
             "project": project,
+            "participants": participants,
+            "participants_count": participants.count(),
             "is_participant": is_participant,
         },
     )
-
 
 @login_required
 def project_create(request):
@@ -94,19 +99,29 @@ def project_edit(request, pk):
 def toggle_participate(request, pk):
     project = get_object_or_404(Project, pk=pk)
 
-    if request.user == project.owner:
-        return JsonResponse({"status": "error"}, status=400)
+    project.participants.add(project.owner)
 
-    if request.user in project.participants.all():
+    if request.user == project.owner:
+        return JsonResponse({
+            "status": "error",
+            "message": "Автор проекта уже является участником.",
+        }, status=400)
+
+    if project.participants.filter(pk=request.user.pk).exists():
         project.participants.remove(request.user)
         participating = False
     else:
         project.participants.add(request.user)
         participating = True
 
+    participants_count = project.participants.exclude(
+        pk=project.owner.pk
+    ).count()
+
     return JsonResponse({
         "status": "ok",
         "participating": participating,
+        "participants_count": participants_count,
     })
 
 

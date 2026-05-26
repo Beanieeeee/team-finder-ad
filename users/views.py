@@ -1,12 +1,8 @@
 from django.contrib import messages
 from django.contrib.auth import login, logout, update_session_auth_hash
-from django.shortcuts import redirect, render
-from django.shortcuts import get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from .forms import LoginForm, ProfileEditForm, RegisterForm
-from django.contrib.auth import update_session_auth_hash
-from .models import User
+from django.shortcuts import get_object_or_404, redirect, render
 
 from .forms import (
     CustomPasswordChangeForm,
@@ -14,6 +10,7 @@ from .forms import (
     ProfileEditForm,
     RegisterForm,
 )
+from .models import User
 
 
 def register_view(request):
@@ -59,36 +56,36 @@ def profile_view(request, pk):
 
 def user_list(request):
     users = User.objects.all().order_by("-id")
-
     active_filter = request.GET.get("filter")
 
     if request.user.is_authenticated and active_filter:
-
-        if active_filter == "favorite_authors":
+        if active_filter == "owners-of-favorite-projects":
             users = User.objects.filter(
                 owned_projects__in=request.user.favorites.all()
             ).distinct()
 
-        elif active_filter == "participated_authors":
+        elif active_filter == "owners-of-participating-projects":
             users = User.objects.filter(
                 owned_projects__participants=request.user
             ).distinct()
 
-        elif active_filter == "liked_my_projects":
+        elif active_filter == "interested-in-my-projects":
             users = User.objects.filter(
                 favorites__owner=request.user
             ).distinct()
 
-        elif active_filter == "participants_my_projects":
+        elif active_filter == "participants-of-my-projects":
             users = User.objects.filter(
                 participated_projects__owner=request.user
             ).exclude(pk=request.user.pk).distinct()
 
     paginator = Paginator(users, 12)
-
     page_number = request.GET.get("page")
-
     page_obj = paginator.get_page(page_number)
+
+    query_prefix = ""
+    if active_filter:
+        query_prefix = f"filter={active_filter}&"
 
     return render(
         request,
@@ -97,6 +94,7 @@ def user_list(request):
             "participants": page_obj,
             "page_obj": page_obj,
             "active_filter": active_filter,
+            "query_prefix": query_prefix,
         },
     )
 
@@ -131,11 +129,6 @@ def change_password(request):
     if form.is_valid():
         user = form.save()
         update_session_auth_hash(request, user)
-        messages.success(request, "Аккаунт успешно создан. Теперь войдите в систему.")
-        messages.success(request, "Аккаунт успешно создан. Теперь войдите в систему.")
-        messages.success(request, "Вы вошли в аккаунт.")
-        messages.success(request, "Вы вышли из аккаунта.")
-        messages.success(request, "Профиль успешно обновлён.")
         messages.success(request, "Пароль успешно изменён.")
         return redirect("users:profile", pk=request.user.pk)
 
