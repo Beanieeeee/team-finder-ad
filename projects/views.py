@@ -1,11 +1,37 @@
+from http import HTTPStatus
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.core.paginator import Paginator
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
+from core.utils import paginate_queryset
+
 from .forms import ProjectForm
 from .models import Project
+
+
+PROJECTS_PER_PAGE = 12
+
+
+def get_project_json_response(pk, owner=None):
+    projects = Project.objects.all()
+
+    if owner is not None:
+        projects = projects.filter(owner=owner)
+
+    project = projects.filter(pk=pk).first()
+
+    if project is None:
+        return None, JsonResponse(
+            {
+                "status": "error",
+                "message": "Проект не найден.",
+            },
+            status=HTTPStatus.NOT_FOUND,
+        )
+
+    return project, None
 
 
 def redirect_to_projects(request):
@@ -13,10 +39,8 @@ def redirect_to_projects(request):
 
 
 def project_list(request):
-    projects = Project.objects.select_related("owner").all()
-    paginator = Paginator(projects, 12)
-    page_number = request.GET.get("page")
-    page_obj = paginator.get_page(page_number)
+    projects = Project.objects.select_related("owner")
+    page_obj = paginate_queryset(request, projects, PROJECTS_PER_PAGE)
 
     return render(
         request,
@@ -35,7 +59,6 @@ def project_detail(request, pk):
     )
 
     project.participants.add(project.owner)
-
     participants = project.participants.exclude(pk=project.owner.pk)
 
     is_participant = False
@@ -78,7 +101,11 @@ def project_create(request):
 
 @login_required
 def project_edit(request, pk):
-    project = get_object_or_404(Project, pk=pk, owner=request.user)
+    project = get_object_or_404(
+        Project.objects.select_related("owner"),
+        pk=pk,
+        owner=request.user,
+    )
     form = ProjectForm(request.POST or None, instance=project)
 
     if form.is_valid():
@@ -98,73 +125,91 @@ def project_edit(request, pk):
 
 @login_required
 def toggle_participate(request, pk):
-    project = get_object_or_404(Project, pk=pk)
+    project, error_response = get_project_json_response(pk)
+
+    if error_response is not None:
+        return error_response
 
     project.participants.add(project.owner)
 
     if request.user == project.owner:
-        return JsonResponse({
-            "status": "error",
-            "message": "Автор проекта уже является участником.",
-        }, status=400)
+        return JsonResponse(
+            {
+                "status": "error",
+                "message": "Автор проекта уже является участником.",
+            },
+            status=HTTPStatus.BAD_REQUEST,
+        )
 
-    if project.participants.filter(pk=request.user.pk).exists():
+    is_participant = project.participants.filter(pk=request.user.pk).exists()
+
+    if is_participant:
         project.participants.remove(request.user)
-        participating = False
     else:
         project.participants.add(request.user)
-        participating = True
 
     participants_count = project.participants.exclude(
-        pk=project.owner.pk
+        pk=project.owner.pk,
     ).count()
 
-    return JsonResponse({
-        "status": "ok",
-        "participating": participating,
-        "participants_count": participants_count,
-    })
+    return JsonResponse(
+        {
+            "status": "ok",
+            "participating": not is_participant,
+            "participants_count": participants_count,
+        }
+    )
 
 
 @login_required
 def complete_project(request, pk):
-    project = get_object_or_404(Project, pk=pk, owner=request.user)
+    project, error_response = get_project_json_response(
+        pk,
+        owner=request.user,
+    )
+
+    if error_response is not None:
+        return error_response
 
     if project.status == Project.STATUS_OPEN:
         project.status = Project.STATUS_CLOSED
         project.save(update_fields=["status"])
         messages.success(request, "Проект завершён.")
 
-    return JsonResponse({
-        "status": "ok",
-        "project_status": project.status,
-    })
+    return JsonResponse(
+        {
+            "status": "ok",
+            "project_status": project.status,
+        }
+    )
 
 
 @login_required
 def toggle_favorite(request, pk):
-    project = get_object_or_404(Project, pk=pk)
+    project, error_response = get_project_json_response(pk)
 
-    if project in request.user.favorites.all():
+    if error_response is not None:
+        return error_response
+
+    is_favorited = request.user.favorites.filter(pk=project.pk).exists()
+
+    if is_favorited:
         request.user.favorites.remove(project)
-        favorited = False
     else:
         request.user.favorites.add(project)
-        favorited = True
 
-    return JsonResponse({
-        "status": "ok",
-        "favorited": favorited,
-    })
+    return JsonResponse(
+        {
+            "status": "ok",
+            "favorited": not is_favorited,
+        }
+    )
 
 
 @login_required
 def favorite_projects(request):
-    projects = request.user.favorites.all()
-
-    paginator = Paginator(projects, 12)
-    page_number = request.GET.get("page")
-    page_obj = paginator.get_page(page_number)
+    projects = request.user.favorites.select_related("owner")
+    page_obj = paginate_queryset(request, projects, PROJECTS_PER_PAGE)
 
     return render(
         request,

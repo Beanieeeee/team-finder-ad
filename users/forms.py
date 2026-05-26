@@ -1,9 +1,8 @@
 from django import forms
 from django.contrib.auth import authenticate
-from django.contrib.auth.forms import PasswordChangeForm
-from urllib.parse import urlparse
 
 from .models import User
+from .utils import normalize_phone, validate_github_url
 
 
 class RegisterForm(forms.ModelForm):
@@ -16,8 +15,10 @@ class RegisterForm(forms.ModelForm):
     def save(self, commit=True):
         user = super().save(commit=False)
         user.set_password(self.cleaned_data["password"])
+
         if commit:
             user.save()
+
         return user
 
 
@@ -37,7 +38,7 @@ class LoginForm(forms.Form):
 
         cleaned_data["user"] = user
         return cleaned_data
-    
+
 
 class ProfileEditForm(forms.ModelForm):
     class Meta:
@@ -45,26 +46,16 @@ class ProfileEditForm(forms.ModelForm):
         fields = ("name", "surname", "avatar", "about", "phone", "github_url")
 
     def clean_phone(self):
-        phone = self.cleaned_data.get("phone", "").strip()
-
-        if not phone:
-            return phone
-
-        if phone.startswith("8") and len(phone) == 11 and phone.isdigit():
-            normalized_phone = "+7" + phone[1:]
-        elif phone.startswith("+7") and len(phone) == 12 and phone[1:].isdigit():
-            normalized_phone = phone
-        else:
-            raise forms.ValidationError(
-                "Телефон должен быть в формате 8XXXXXXXXXX или +7XXXXXXXXXX."
-            )
+        normalized_phone = normalize_phone(
+            self.cleaned_data.get("phone", "")
+        )
 
         users = User.objects.filter(phone=normalized_phone)
 
         if self.instance.pk:
             users = users.exclude(pk=self.instance.pk)
 
-        if users.exists():
+        if normalized_phone and users.exists():
             raise forms.ValidationError(
                 "Пользователь с таким телефоном уже существует."
             )
@@ -72,18 +63,6 @@ class ProfileEditForm(forms.ModelForm):
         return normalized_phone
 
     def clean_github_url(self):
-        github_url = self.cleaned_data.get("github_url", "").strip()
-
-        if not github_url:
-            return github_url
-
-        parsed_url = urlparse(github_url)
-
-        if parsed_url.netloc not in ("github.com", "www.github.com"):
-            raise forms.ValidationError("Ссылка должна вести на GitHub.")
-
-        return github_url
-
-
-class CustomPasswordChangeForm(PasswordChangeForm):
-    pass
+        return validate_github_url(
+            self.cleaned_data.get("github_url", "")
+        )

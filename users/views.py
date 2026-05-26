@@ -1,16 +1,21 @@
 from django.contrib import messages
 from django.contrib.auth import login, logout, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
-from django.core.paginator import Paginator
+from django.contrib.auth.forms import PasswordChangeForm
 from django.shortcuts import get_object_or_404, redirect, render
 
-from .forms import (
-    CustomPasswordChangeForm,
-    LoginForm,
-    ProfileEditForm,
-    RegisterForm,
-)
+from core.utils import paginate_queryset
+
+from .forms import LoginForm, ProfileEditForm, RegisterForm
 from .models import User
+
+
+USERS_PER_PAGE = 12
+
+FILTER_OWNERS_OF_FAVORITE_PROJECTS = "owners-of-favorite-projects"
+FILTER_OWNERS_OF_PARTICIPATING_PROJECTS = "owners-of-participating-projects"
+FILTER_INTERESTED_IN_MY_PROJECTS = "interested-in-my-projects"
+FILTER_PARTICIPANTS_OF_MY_PROJECTS = "participants-of-my-projects"
 
 
 def register_view(request):
@@ -57,33 +62,36 @@ def profile_view(request, pk):
 
 
 def user_list(request):
-    users = User.objects.all().order_by("-id")
+    users = User.objects.prefetch_related(
+        "owned_projects",
+        "participated_projects",
+        "favorites",
+    ).order_by("-id")
+
     active_filter = request.GET.get("filter")
 
     if request.user.is_authenticated and active_filter:
-        if active_filter == "owners-of-favorite-projects":
+        if active_filter == FILTER_OWNERS_OF_FAVORITE_PROJECTS:
             users = User.objects.filter(
                 owned_projects__in=request.user.favorites.all()
             ).distinct()
 
-        elif active_filter == "owners-of-participating-projects":
+        elif active_filter == FILTER_OWNERS_OF_PARTICIPATING_PROJECTS:
             users = User.objects.filter(
                 owned_projects__participants=request.user
             ).distinct()
 
-        elif active_filter == "interested-in-my-projects":
+        elif active_filter == FILTER_INTERESTED_IN_MY_PROJECTS:
             users = User.objects.filter(
                 favorites__owner=request.user
             ).distinct()
 
-        elif active_filter == "participants-of-my-projects":
+        elif active_filter == FILTER_PARTICIPANTS_OF_MY_PROJECTS:
             users = User.objects.filter(
                 participated_projects__owner=request.user
             ).exclude(pk=request.user.pk).distinct()
 
-    paginator = Paginator(users, 12)
-    page_number = request.GET.get("page")
-    page_obj = paginator.get_page(page_number)
+    page_obj = paginate_queryset(request, users, USERS_PER_PAGE)
 
     query_prefix = ""
     if active_filter:
@@ -125,7 +133,7 @@ def profile_edit(request):
 
 @login_required
 def change_password(request):
-    form = CustomPasswordChangeForm(
+    form = PasswordChangeForm(
         user=request.user,
         data=request.POST or None,
     )

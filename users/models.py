@@ -1,43 +1,24 @@
-from io import BytesIO
-from random import choice
-
-from django.contrib.auth.models import (
-    AbstractBaseUser,
-    BaseUserManager,
-    PermissionsMixin,
-)
-from django.core.files.base import ContentFile
+from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.db import models
-from PIL import Image, ImageDraw, ImageFont
+
+from .managers import UserManager
+from .utils import generate_avatar_file
 
 
-class UserManager(BaseUserManager):
-    def create_user(self, email, password=None, **extra_fields):
-        if not email:
-            raise ValueError("Email обязателен")
-
-        email = self.normalize_email(email)
-        user = self.model(email=email, **extra_fields)
-        user.set_password(password)
-        user.save()
-
-        return user
-
-    def create_superuser(self, email, password=None, **extra_fields):
-        extra_fields.setdefault("is_staff", True)
-        extra_fields.setdefault("is_superuser", True)
-
-        return self.create_user(email, password, **extra_fields)
+USER_NAME_MAX_LENGTH = 124
+USER_SURNAME_MAX_LENGTH = 124
+USER_PHONE_MAX_LENGTH = 12
+USER_ABOUT_MAX_LENGTH = 256
 
 
 class User(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(unique=True)
-    name = models.CharField(max_length=124)
-    surname = models.CharField(max_length=124)
+    name = models.CharField(max_length=USER_NAME_MAX_LENGTH)
+    surname = models.CharField(max_length=USER_SURNAME_MAX_LENGTH)
     avatar = models.ImageField(upload_to="avatars/", blank=True, null=True)
-    phone = models.CharField(max_length=12, blank=True)
+    phone = models.CharField(max_length=USER_PHONE_MAX_LENGTH, blank=True)
     github_url = models.URLField(blank=True)
-    about = models.TextField(max_length=256, blank=True)
+    about = models.TextField(max_length=USER_ABOUT_MAX_LENGTH, blank=True)
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
 
@@ -51,53 +32,17 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     USERNAME_FIELD = "email"
 
-    def generate_avatar(self):
-        colors = [
-            "#B8D8D8",
-            "#F4D06F",
-            "#FFB997",
-            "#CDB4DB",
-            "#A8DADC",
-            "#BDE0FE",
-        ]
-
-        image_size = 256
-        background_color = choice(colors)
-        letter = self.name[0].upper() if self.name else "U"
-
-        image = Image.new("RGB", (image_size, image_size), background_color)
-        draw = ImageDraw.Draw(image)
-
-        try:
-            font = ImageFont.truetype("arial.ttf", 120)
-        except OSError:
-            font = ImageFont.load_default()
-
-        bbox = draw.textbbox((0, 0), letter, font=font)
-        text_width = bbox[2] - bbox[0]
-        text_height = bbox[3] - bbox[1]
-
-        text_position = (
-            (image_size - text_width) / 2,
-            (image_size - text_height) / 2 - 10,
-        )
-
-        draw.text(text_position, letter, fill="#FFFFFF", font=font)
-
-        buffer = BytesIO()
-        image.save(buffer, format="PNG")
-
-        file_name = f"avatar_{self.email}.png"
-
-        self.avatar.save(
-            file_name,
-            ContentFile(buffer.getvalue()),
-            save=False,
-        )
-
     def save(self, *args, **kwargs):
         if not self.avatar:
-            self.generate_avatar()
+            file_name, avatar_file = generate_avatar_file(
+                self.name,
+                self.email,
+            )
+            self.avatar.save(
+                file_name,
+                avatar_file,
+                save=False,
+            )
 
         super().save(*args, **kwargs)
 
