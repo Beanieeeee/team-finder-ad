@@ -40,6 +40,7 @@ def logout_view(request):
     messages.success(request, "Вы вышли из аккаунта.")
     return redirect("projects:project_list")
 
+
 def profile_view(request, pk):
     user = get_object_or_404(
         User.objects.prefetch_related("owned_projects"),
@@ -53,6 +54,7 @@ def profile_view(request, pk):
             "user": user,
         },
     )
+
 
 def user_list(request):
     users = User.objects.all().order_by("-id")
@@ -98,6 +100,7 @@ def user_list(request):
         },
     )
 
+
 @login_required
 def profile_edit(request):
     form = ProfileEditForm(
@@ -118,6 +121,7 @@ def profile_edit(request):
             "form": form,
         },
     )
+
 
 @login_required
 def change_password(request):

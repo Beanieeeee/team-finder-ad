@@ -53,6 +53,7 @@ def project_detail(request, pk):
         },
     )
 
+
 @login_required
 def project_create(request):
     form = ProjectForm(request.POST or None)

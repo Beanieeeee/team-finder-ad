@@ -38,6 +38,7 @@ class LoginForm(forms.Form):
         cleaned_data["user"] = user
         return cleaned_data
     
+
 class ProfileEditForm(forms.ModelForm):
     class Meta:
         model = User
@@ -64,7 +65,9 @@ class ProfileEditForm(forms.ModelForm):
             users = users.exclude(pk=self.instance.pk)
 
         if users.exists():
-            raise forms.ValidationError("Пользователь с таким телефоном уже существует.")
+            raise forms.ValidationError(
+                "Пользователь с таким телефоном уже существует."
+            )
 
         return normalized_phone
 
@@ -80,6 +83,7 @@ class ProfileEditForm(forms.ModelForm):
             raise forms.ValidationError("Ссылка должна вести на GitHub.")
 
         return github_url
+
 
 class CustomPasswordChangeForm(PasswordChangeForm):
     pass

@@ -1,5 +1,7 @@
-from django import forms
 from urllib.parse import urlparse
+
+from django import forms
+
 from .models import Project
 
 
