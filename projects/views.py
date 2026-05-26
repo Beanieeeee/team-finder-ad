@@ -1,9 +1,10 @@
-from django.core.paginator import Paginator
-from django.shortcuts import get_object_or_404, redirect, render
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.paginator import Paginator
 from django.http import JsonResponse
-from .forms import ProjectForm
+from django.shortcuts import get_object_or_404, redirect, render
 
+from .forms import ProjectForm
 from .models import Project
 
 
@@ -46,6 +47,7 @@ def project_detail(request, pk):
         },
     )
 
+
 @login_required
 def project_create(request):
     form = ProjectForm(request.POST or None)
@@ -55,6 +57,7 @@ def project_create(request):
         project.owner = request.user
         project.save()
         project.participants.add(request.user)
+        messages.success(request, "Проект успешно создан.")
         return redirect("projects:project_detail", pk=project.pk)
 
     return render(
@@ -74,6 +77,7 @@ def project_edit(request, pk):
 
     if form.is_valid():
         project = form.save()
+        messages.success(request, "Проект успешно обновлён.")
         return redirect("projects:project_detail", pk=project.pk)
 
     return render(
@@ -84,8 +88,6 @@ def project_edit(request, pk):
             "is_edit": True,
         },
     )
-
-from django.http import JsonResponse
 
 
 @login_required
@@ -115,11 +117,13 @@ def complete_project(request, pk):
     if project.status == Project.STATUS_OPEN:
         project.status = Project.STATUS_CLOSED
         project.save(update_fields=["status"])
+        messages.success(request, "Проект завершён.")
 
     return JsonResponse({
         "status": "ok",
         "project_status": project.status,
     })
+
 
 @login_required
 def toggle_favorite(request, pk):

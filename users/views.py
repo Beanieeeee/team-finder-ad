@@ -3,6 +3,7 @@ from django.shortcuts import redirect, render
 from django.shortcuts import get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
+from django.contrib import messages
 from .forms import LoginForm, ProfileEditForm, RegisterForm
 from django.contrib.auth import update_session_auth_hash
 from .models import User
@@ -20,6 +21,7 @@ def register_view(request):
 
     if form.is_valid():
         form.save()
+        messages.success(request, "Аккаунт успешно создан. Теперь войдите в систему.")
         return redirect("users:login")
 
     return render(request, "users/register.html", {"form": form})
@@ -30,6 +32,7 @@ def login_view(request):
 
     if form.is_valid():
         login(request, form.cleaned_data["user"])
+        messages.success(request, "Вы вошли в аккаунт.")
         return redirect("projects:project_list")
 
     return render(request, "users/login.html", {"form": form})
@@ -37,6 +40,7 @@ def login_view(request):
 
 def logout_view(request):
     logout(request)
+    messages.success(request, "Вы вышли из аккаунта.")
     return redirect("projects:project_list")
 
 def profile_view(request, pk):
@@ -106,6 +110,7 @@ def profile_edit(request):
 
     if form.is_valid():
         form.save()
+        messages.success(request, "Профиль успешно обновлён.")
         return redirect("users:profile", pk=request.user.pk)
 
     return render(
@@ -126,6 +131,7 @@ def change_password(request):
     if form.is_valid():
         user = form.save()
         update_session_auth_hash(request, user)
+        messages.success(request, "Пароль успешно изменён.")
         return redirect("users:profile", pk=request.user.pk)
 
     return render(
